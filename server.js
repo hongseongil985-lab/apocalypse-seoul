@@ -1,731 +1,1152 @@
-const http=require("http");
-const https=require("https");
+var http=require("http");
+var url=require("url");
 
-const PORT=process.env.PORT||3000;
-const GITHUB_TOKEN=process.env.GITHUB_TOKEN||"";
-const OWNER="hongseongil985-lab";
-const REPO="apocalypse-seoul";
-const BACKUP_FILE="apocalypse_backup.json";
+var PORT=process.env.PORT||3000;
 
-const guilds={
-"하운더":{region:"강남",special:"차량"},
-"약탈자":{region:"마포",special:"탐색"},
-"범죄자들 모임":{region:"관악",special:"거래"},
-"가출팸":{region:"홍대",special:"기동"},
-"시민연합":{region:"종로",special:"의료"},
-"철벽":{region:"용산",special:"방어"},
-"유랑민":{region:"은평",special:"이동"},
-"한강연합":{region:"광진",special:"수상"},
-"폐공장연합":{region:"금천",special:"제작"},
-"상인연합":{region:"영등포",special:"교환"},
-"별의 후예":{region:"여의도",special:"외계"}
+var regions=[
+"서울역","강남","강북","홍대","종로","명동","잠실","여의도","마포","용산",
+"동대문","성수","금천","은평","관악","광진","영등포","구로","신촌","한강"
+];
+
+var guilds=[
+"하운더","약탈자","범죄자들 모임","가출팸","시민연합",
+"철벽","유랑민","한강연합","폐공장연합","상인연합","별의 후예"
+];
+
+var jobs=[
+"생존자","사냥꾼","탐색자","의무병","정비공","상인"
+];
+
+var world={
+korea:{
+platform:"kakao",
+players:{},
+rooms:{},
+gameRoom:null,
+market:{},
+events:[]
+},
+asia:{
+platform:"instagram",
+players:{},
+rooms:{},
+gameRoom:null,
+market:{},
+events:[],
+minigames:{}
+}
 };
 
-const jobs=["생존자","정찰병","의무병","기술자","상인","운전사","사냥꾼","탐험가"];
+var miniCounter=1000;
 
-const skills=["블링크","텔레포트","공간이동","차원 이동자","아공간","차원을 가르는 참격","ERROR"];
-
-const regions={
-"강남":{risk:3,supply:500,control:"하운더"},
-"강북":{risk:3,supply:450,control:"없음"},
-"홍대":{risk:4,supply:300,control:"가출팸"},
-"종로":{risk:2,supply:650,control:"시민연합"},
-"명동":{risk:4,supply:700,control:"없음"},
-"서울역":{risk:5,supply:900,control:"없음"},
-"잠실":{risk:3,supply:550,control:"없음"},
-"여의도":{risk:3,supply:600,control:"별의 후예"},
-"마포":{risk:4,supply:400,control:"약탈자"},
-"용산":{risk:2,supply:600,control:"철벽"},
-"동대문":{risk:4,supply:700,control:"없음"},
-"성수":{risk:3,supply:550,control:"없음"},
-"금천":{risk:3,supply:500,control:"폐공장연합"},
-"은평":{risk:3,supply:450,control:"유랑민"},
-"관악":{risk:5,supply:500,control:"범죄자들 모임"},
-"광진":{risk:3,supply:650,control:"한강연합"},
-"영등포":{risk:2,supply:750,control:"상인연합"},
-"구로":{risk:4,supply:600,control:"없음"},
-"신촌":{risk:4,supply:450,control:"없음"},
-"한강":{risk:4,supply:800,control:"한강연합"}
-};
-
-const zombieNames=["워커","러너","크롤러","하울러","스크리머","브루트","헌터","리퍼","베놈","블러드워커","나이트워커","그레이브워커","로튼","페스터","본이터","슬러거","스토커","드레드워커","스웜","네스트","스파인","크림슨","블랙러너","아이리스","페이스리스","마로더","데바스테이터","거터","스컬러","헬하운드","메일스트롬","래비저","그레이브이터","로커스트","블라인드","스크래처","터미너스","카니지","하이브","리치","본브레이커","워프드","블라이트","페일","데드맨","블러드하울","로드","타이런트","콜로서스","킹 워커","스모커","스파이터","러스트","애시","플레임","프로즌","쇼크","톡식","미스트","스펙터","쉐이드","모울러","크러셔","디바우러","스플리터","리애니메이터","본리퍼","페스트마스터","블러드마스터","데드아이","아이언워커","스톤워커","와일드","매드맨","로스트","하이드","언더워커","터널러","하이퍼","에볼버","뮤턴트","어보미네이션","카오스","디케이","엔드워커","둠러너","데스하울","블랙하운드","레드하운드","화이트하운드","그레이하운드","나이트메어","아포칼립스","제로","ERROR","ERROR-01","ERROR-02","UNKNOWN","UNKNOWN-01","서울의 재앙"];
-
-const alienNames=["그레이","제노","크세르","바르곤","네크론","아르곤","제르크","보락","켈론","라크스","오르빅","타르곤","벨록","시리온","드라크","노바르","엘론","카르스","모르곤","제타르","이그니스","보이드","아스트라","크로노","벡터","솔라","루나","네뷸라","코어","프록시","제네시스","옵시디언","오메가","알파","베타","감마","델타","시그마","세타","람다","에코","아이온","아크론","벤타","모르타","카이론","세라프","엑시온","페르곤","제노로드","스카우터","헌터","워리어","가디언","디스트로이어","인베이더","드론","프레데터","리퍼","워커","스토커","컨커러","오버로드","커맨더","엘더","프라임","마더","브루드","하이브","스웜","플라즈마","크라이오","그래비티","보이드워커","스타이터","문이터","선이터","블랙스타","레드스타","데드스타","폴른","이터널","어센던트","디센던트","아나이얼레이터","엔드브링어","UNKNOWN","UNKNOWN-01","UNKNOWN-02","X-001","X-002","X-003","X-004","X-005","XENOS","VOID-X","ZERO-X","OMEGA-X","외계 군주","THE VISITOR"];
-
-const creatureNames=["하울러","페이스리스","스킨워커","본비스트","블러드독","나이트크롤러","아이리스","스크리머","러커","터널비스트","그레이브비스트","블랙비스트","레드비스트","화이트비스트","크로울러","스파이더","맨티스","웜","리바이어던","모울","크러셔","브루저","헌터","스토커","리퍼","드레드","쉐이드","미러","미믹","더블","위스퍼","하이드","글룸","블러드메어","본드래곤","스톤이터","아이언비스트","플레임비스트","프로스트비스트","썬더비스트","포이즌비스트","스모그비스트","크림슨비스트","어비스비스트","보이드비스트","드림이터","소울이터","나이트메어","데드아이","크리쳐 킹","슬러그","랫킹","몰러","플라이","와스프","스팅어","크로우","블랙버드","본윙","데스윙","스크래치","클로","탈론","팽","로어러","시프터","스플리터","퓨전","리버스","에코","카르니지","데바우러","아비터","마로더","워처","키퍼","가디언","세이비어","디바인","폴른","루인","디케이","카오스","아포칼립스","엔드","UNKNOWN","UNKNOWN-01","ERROR","ERROR-02","BLACK-01","RED-01","WHITE-01","ZERO","NULL","VOID","THE LOST","THE HUNGER","THE WATCHER","THE CREATURE","서울의 악몽"];
-
-const fishNames=["붕어","잉어","메기","미꾸라지","피라미","송사리","가물치","쏘가리","배스","연어","송어","참치","고등어","갈치","광어","우럭","농어","도미","방어","전어","복어","장어","문어","오징어","새우","게","가재","조개","굴","홍합","연어왕","황금잉어","검은붕어","붉은메기","푸른송어","별빛물고기","달빛물고기","태양어","보이드피쉬","크로노피쉬","플라즈마피쉬","그래비티피쉬","외계어","제노피쉬","네뷸라피쉬","오메가피쉬","X-피쉬","ERROR 피쉬","UNKNOWN 피쉬","서울의 괴어"];
-
-while(fishNames.length<100) fishNames.push("물고기-"+fishNames.length);
-
-const vehicleNames=[];
-for(let i=1;i<=200;i++) vehicleNames.push("지상차량-"+String(i).padStart(3,"0"));
-for(let i=1;i<=50;i++) vehicleNames.push("항공기-"+String(i).padStart(3,"0"));
-for(let i=1;i<=30;i++) vehicleNames.push("수상차량-"+String(i).padStart(3,"0"));
-["X-Runner","Void Cruiser","Gravity Skiff","Warp Rider","Dimensional Ark","Star Hopper","Alien Speeder","Orbital Dropper","Void Walker","X-Gate Carrier","Nova Runner","Dark Cruiser","Galaxy Skiff","Void Rider","Cosmic Ark","Star Cruiser","Alien Runner","Quantum Walker","ERROR Carrier","THE VISITOR"].forEach(v=>vehicleNames.push(v));
-
-const itemCategories=["식량","물","의료","재료","괴물 부산물","장비","무기","방어구","외계 장비","희귀 아이템"];
-const items={};
-
-for(let c=0;c<itemCategories.length;c++){
-  for(let i=1;i<=100;i++){
-    const n=itemCategories[c]+"-"+String(i).padStart(3,"0");
-    items[n]={category:itemCategories[c],price:10+i*5,tradable:true};
-  }
+function send(res,data,code){
+res.writeHead(code||200,{"Content-Type":"application/json; charset=utf-8"});
+res.end(JSON.stringify(data));
 }
 
-items["임무 핵심 물품"]={category:"희귀 아이템",price:0,tradable:false};
+function readBody(req,callback){
+var data="";
 
-const world={
-kakao:{players:{},market:{},events:[]},
-instagram:{players:{},market:{},events:[]}
-};
+req.on("data",function(chunk){
+data+=chunk;
+});
 
-let backupSha=null;
-
-function send(res,code,data){
-  res.writeHead(code,{
-    "Content-Type":"application/json; charset=utf-8",
-    "Access-Control-Allow-Origin":"*",
-    "Access-Control-Allow-Methods":"GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers":"Content-Type"
-  });
-  res.end(JSON.stringify(data));
+req.on("end",function(){
+if(!data){
+callback({});
+return;
 }
 
-function githubRequest(method,path,body){
-  return new Promise((resolve,reject)=>{
-    const req=https.request({
-      hostname:"api.github.com",
-      path:path,
-      method:method,
-      headers:{
-        "User-Agent":"apocalypse-seoul",
-        "Authorization":"Bearer "+GITHUB_TOKEN,
-        "Accept":"application/vnd.github+json",
-        "Content-Type":"application/json"
-      }
-    },res=>{
-      let result="";
-      res.on("data",c=>result+=c);
-      res.on("end",()=>{
-        try{resolve({status:res.statusCode,data:JSON.parse(result)});}
-        catch(e){resolve({status:res.statusCode,data:result});}
-      });
-    });
-    req.on("error",reject);
-    if(body) req.write(JSON.stringify(body));
-    req.end();
-  });
+try{
+callback(JSON.parse(data));
+}catch(e){
+callback({});
 }
-
-async function loadBackup(){
-  if(!GITHUB_TOKEN) return;
-  try{
-    const r=await githubRequest("GET","/repos/"+OWNER+"/"+REPO+"/contents/"+BACKUP_FILE);
-    if(r.status!==200) return;
-    backupSha=r.data.sha;
-    const raw=r.data.content.replace(/\n/g,"");
-    const saved=JSON.parse(Buffer.from(raw,"base64").toString("utf8"));
-    if(saved.kakao&&saved.instagram){
-      world.kakao=saved.kakao;
-      world.instagram=saved.instagram;
-    }
-  }catch(e){}
-}
-
-async function saveBackup(){
-  if(!GITHUB_TOKEN) return false;
-  try{
-    const content=Buffer.from(JSON.stringify(world,null,2),"utf8").toString("base64");
-    const body={message:"아포칼립스 서울 자동 백업",content:content};
-    if(backupSha) body.sha=backupSha;
-    const r=await githubRequest("PUT","/repos/"+OWNER+"/"+REPO+"/contents/"+BACKUP_FILE,body);
-    if(r.status===200||r.status===201){
-      backupSha=r.data.content.sha;
-      return true;
-    }
-  }catch(e){}
-  return false;
+});
 }
 
 function getPlatform(req){
-  return req.headers["x-platform"]==="instagram"?"instagram":"kakao";
+var p=String(req.headers["x-platform"]||"kakao").toLowerCase();
+
+if(p==="instagram"){
+return"instagram";
+}
+
+return"kakao";
+}
+
+function getWorld(platform){
+if(platform==="instagram"){
+return world.asia;
+}
+
+return world.korea;
 }
 
 function getPlayer(platform,id){
-  return world[platform].players[id]||null;
+return getWorld(platform).players[id]||null;
 }
 
-function findPlayer(platform,name){
-  const ps=world[platform].players;
-  for(const id in ps){
-    if(ps[id].name===name) return ps[id];
-  }
-  return null;
+function touch(player){
+player.lastActivity=Date.now();
 }
 
-function nameExists(platform,name){
-  return !!findPlayer(platform,name);
+function getStatus(player){
+var diff=Date.now()-player.lastActivity;
+
+if(diff<600000){
+return"online";
 }
 
-function createPlayer(platform,id,name){
-  return {
-    id:id,
-    name:name,
-    platform:platform,
-    level:1,
-    exp:0,
-    hp:100,
-    maxHp:100,
-    stamina:100,
-    hunger:100,
-    thirst:100,
-    money:1000,
-    coin:0,
-    region:"서울역",
-    guild:null,
-    job:null,
-    guildTrust:50,
-    skills:[],
-    items:{"식량-001":3,"물-001":3},
-    vehicles:[],
-    fishingRod:null,
-    fish:[],
-    kills:0,
-    saves:[null,null,null],
-    joined:true,
-    started:false,
-    lastActivity:Date.now(),
-    chatCooldown:0,
-    whisperCooldown:0,
-    friends:[],
-    friendRequests:[]
-  };
+if(diff<1800000){
+return"away";
 }
 
-function statusOf(p){
-  const diff=Date.now()-p.lastActivity;
-  if(diff>=1800000) return "offline";
-  if(diff>=600000) return "away";
-  return "online";
+return"offline";
 }
 
-function statusText(s){
-  if(s==="online") return "🟢 온라인";
-  if(s==="away") return "🟡 자리비움";
-  return "⚫ 오프라인";
+function createPlayer(id,name,platform){
+return{
+id:id,
+name:name,
+platform:platform,
+level:1,
+exp:0,
+hp:100,
+maxHp:100,
+stamina:100,
+hunger:100,
+thirst:100,
+money:0,
+coin:0,
+region:"서울역",
+guild:"",
+job:"",
+guildTrust:0,
+skills:[],
+items:{
+"물":3,
+"식량":3
+},
+vehicles:[],
+fishingRod:false,
+fish:{},
+kills:{
+zombie:0,
+alien:0,
+creature:0
+},
+saves:{},
+joined:true,
+started:false,
+lastActivity:Date.now(),
+friends:[],
+friendRequests:[]
+};
 }
 
-function activity(p){
-  p.lastActivity=Date.now();
+function addItem(player,item,count){
+if(!player.items[item]){
+player.items[item]=0;
 }
 
-function addItem(p,name,count){
-  if(!p.items[name]) p.items[name]=0;
-  p.items[name]+=count;
+player.items[item]+=count;
 }
 
-function removeItem(p,name,count){
-  if(!p.items[name]||p.items[name]<count) return false;
-  p.items[name]-=count;
-  if(p.items[name]<=0) delete p.items[name];
-  return true;
+function randomItem(){
+var list=[
+"통조림",
+"생수",
+"붕대",
+"배터리",
+"철조각",
+"전자부품",
+"의약품",
+"식량",
+"탄약",
+"고철"
+];
+
+return list[Math.floor(Math.random()*list.length)];
 }
 
-function expUp(p,n){
-  p.exp+=n;
-  let levelup=false;
-  while(p.exp>=p.level*100){
-    p.exp-=p.level*100;
-    p.level++;
-    p.maxHp+=10;
-    p.hp=p.maxHp;
-    levelup=true;
-  }
-  return levelup;
+function randomFish(){
+var list=[
+"붕어",
+"잉어",
+"메기",
+"연어",
+"송어",
+"장어",
+"농어",
+"참치",
+"상어",
+"황금물고기"
+];
+
+return list[Math.floor(Math.random()*list.length)];
 }
 
-function playerInfo(p){
-  return {
-    name:p.name,
-    level:p.level,
-    exp:p.exp,
-    hp:p.hp,
-    maxHp:p.maxHp,
-    stamina:p.stamina,
-    hunger:p.hunger,
-    thirst:p.thirst,
-    money:p.money,
-    coin:p.coin,
-    region:p.region,
-    guild:p.guild,
-    job:p.job,
-    guildTrust:p.guildTrust,
-    skills:p.skills,
-    items:p.items,
-    vehicles:p.vehicles,
-    fishingRod:p.fishingRod,
-    fish:p.fish,
-    kills:p.kills,
-    status:statusOf(p)
-  };
+function levelUp(player){
+while(player.exp>=player.level*100){
+player.exp-=player.level*100;
+player.level++;
+player.maxHp+=10;
+player.hp=player.maxHp;
+player.stamina=100;
+}
 }
 
-function registerPlayer(platform,id,name){
-  if(!id||!name) return {success:false,message:"아이디와 캐릭터 이름을 입력해주세요."};
-  if(world[platform].players[id]) return {success:false,message:"이미 가입된 아이디입니다."};
-  if(nameExists(platform,name)) return {success:false,message:"이미 사용 중인 캐릭터 이름입니다."};
-  const p=createPlayer(platform,id,name);
-  world[platform].players[id]=p;
-  return {success:true,player:playerInfo(p)};
+function roomCheck(platform,room){
+if(!room){
+return false;
 }
 
-function startPlayer(platform,id){
-  const p=getPlayer(platform,id);
-  if(!p) return {success:false,message:"/가입 먼저 해주세요."};
-  p.started=true;
-  activity(p);
-  return {success:true,player:playerInfo(p)};
+return getWorld(platform).gameRoom===room;
 }
 
-function chooseJob(platform,id,job){
-  const p=getPlayer(platform,id);
-  if(!p) return {success:false,message:"/가입 먼저 해주세요."};
-  if(jobs.indexOf(job)===-1) return {success:false,message:"존재하지 않는 직업입니다."};
-  p.job=job;
-  activity(p);
-  return {success:true,message:"직업이 "+job+"으로 설정되었습니다.",player:playerInfo(p)};
+function miniType(type){
+type=String(type||"").trim();
+
+if(type==="낚시"||type==="낚시대결")return"fishing";
+if(type==="좀비"||type==="좀비대결")return"zombie";
+if(type==="외계인"||type==="외계인대결")return"alien";
+if(type==="크리쳐"||type==="크리쳐대결")return"creature";
+if(type==="물자"||type==="물자대결")return"supply";
+if(type==="돈"||type==="돈벌기"||type==="돈벌기대결")return"money";
+if(type==="폭탄"||type==="폭탄돌리기")return"bomb";
+
+return null;
 }
 
-function chooseGuild(platform,id,guild){
-  const p=getPlayer(platform,id);
-  if(!p) return {success:false,message:"/가입 먼저 해주세요."};
-  if(!guilds[guild]) return {success:false,message:"존재하지 않는 길드입니다."};
-  p.guild=guild;
-  p.region=guilds[guild].region;
-  p.guildTrust=50;
-  activity(p);
-  return {success:true,message:"🏴 길드 가입 완료\n길드: "+guild+"\n지역: "+p.region+"\n특화: "+guilds[guild].special,player:playerInfo(p)};
+function miniName(type){
+var names={
+fishing:"🎣 낚시 대결",
+zombie:"🧟 좀비 사냥 대결",
+alien:"👽 외계인 사냥 대결",
+creature:"👹 크리쳐 사냥 대결",
+supply:"📦 물자 수집 대결",
+money:"💰 돈벌기 대결",
+bomb:"💣 폭탄돌리기"
+};
+
+return names[type]||"미니게임";
 }
 
-function movePlayer(platform,id,destination){
-  const p=getPlayer(platform,id);
-  if(!p) return {success:false,message:"/가입 먼저 해주세요."};
-  if(!regions[destination]) return {success:false,message:"존재하지 않는 지역입니다."};
-  if(!p.started) return {success:false,message:"/시작을 먼저 해주세요."};
-  if(p.region===destination) return {success:false,message:"이미 "+destination+"에 있습니다."};
-
-  const distance=1+Math.floor(Math.random()*4);
-  const foodNeed=distance;
-  const waterNeed=distance;
-
-  if(!p.items["식량-001"]||p.items["식량-001"]<foodNeed){
-    return {success:false,message:"이동에 필요한 식량이 부족합니다."};
-  }
-
-  if(!p.items["물-001"]||p.items["물-001"]<waterNeed){
-    return {success:false,message:"이동에 필요한 물이 부족합니다."};
-  }
-
-  removeItem(p,"식량-001",foodNeed);
-  removeItem(p,"물-001",waterNeed);
-
-  const from=p.region;
-  p.region=destination;
-  p.hunger=Math.max(0,p.hunger-foodNeed*5);
-  p.thirst=Math.max(0,p.thirst-waterNeed*5);
-  activity(p);
-
-  return {
-    success:true,
-    message:"🚶 이동 완료\n"+from+" → "+destination+"\n식량 -"+foodNeed+"\n물 -"+waterNeed+"\n위험도 ★"+regions[destination].risk,
-    player:playerInfo(p)
-  };
+function miniId(){
+miniCounter++;
+return"IG"+miniCounter;
 }
 
-function explore(platform,id){
-  const p=getPlayer(platform,id);
-  if(!p) return {success:false,message:"/가입 먼저 해주세요."};
-  if(!p.started) return {success:false,message:"/시작을 먼저 해주세요."};
+function areFriends(a,b){
+var pa=getPlayer("instagram",a);
+var pb=getPlayer("instagram",b);
 
-  activity(p);
-
-  const roll=Math.random();
-
-  if(roll<0.35){
-    addItem(p,"식량-001",1);
-    return {success:true,message:"🔎 탐색 완료\n식량-001 x1을 발견했습니다."};
-  }
-
-  if(roll<0.65){
-    addItem(p,"물-001",1);
-    return {success:true,message:"🔎 탐색 완료\n물-001 x1을 발견했습니다."};
-  }
-
-  if(roll<0.82){
-    addItem(p,"재료-001",1);
-    return {success:true,message:"🔎 탐색 완료\n재료-001 x1을 발견했습니다."};
-  }
-
-  if(roll<0.94){
-    p.money+=100;
-    return {success:true,message:"🔎 탐색 완료\n💰 100원을 발견했습니다."};
-  }
-
-  p.coin++;
-  return {success:true,message:"🔎 탐색 완료\n🪙 희귀한 코인 1개를 발견했습니다."};
+if(!pa||!pb){
+return false;
 }
 
-function hunt(platform,id){
-  const p=getPlayer(platform,id);
-  if(!p) return {success:false,message:"/가입 먼저 해주세요."};
-  if(!p.started) return {success:false,message:"/시작을 먼저 해주세요."};
-
-  activity(p);
-
-  const r=regions[p.region];
-  const list=r.risk>=5?zombieNames.slice(0,100):zombieNames.slice(0,70);
-  const enemy=list[Math.floor(Math.random()*list.length)];
-  const reward=50+r.risk*25;
-
-  p.kills++;
-  p.money+=reward;
-  const levelup=expUp(p,10);
-
-  addItem(p,"괴물 부산물-"+String(1+Math.floor(Math.random()*100)).padStart(3,"0"),1);
-
-  let text="🧟 "+enemy+" 처치!\n💰 +"+reward+"\n⭐ 경험치 +10\n☠️ 처치 수: "+p.kills;
-
-  if(levelup) text+="\n🎉 레벨 업! Lv."+p.level;
-
-  return {success:true,message:text,player:playerInfo(p)};
+return pa.friends.indexOf(b)!==-1&&pb.friends.indexOf(a)!==-1;
 }
 
-function fishing(platform,id){
-  const p=getPlayer(platform,id);
-  if(!p) return {success:false,message:"/가입 먼저 해주세요."};
-  if(!p.started) return {success:false,message:"/시작을 먼저 해주세요."};
-  if(!p.fishingRod) return {success:false,message:"낚싯대가 없습니다. 국회시장 → 낚시용품점에서 낚싯대를 구매하세요."};
+function createMiniGame(owner,targets,type,seconds){
+if(seconds<1)seconds=1;
+if(seconds>600)seconds=600;
 
-  activity(p);
+var players=[owner];
 
-  const fish=fishNames[Math.floor(Math.random()*fishNames.length)];
-  p.fish.push(fish);
-
-  return {success:true,message:"🎣 낚시 성공!\n🐟 "+fish+"을(를) 잡았습니다."};
+for(var i=0;i<targets.length;i++){
+if(players.indexOf(targets[i])===-1){
+players.push(targets[i]);
+}
 }
 
-function saveGame(platform,id,slot){
-  const p=getPlayer(platform,id);
-  if(!p) return {success:false,message:"가입된 캐릭터가 없습니다."};
-
-  slot=Number(slot);
-
-  if(slot<1||slot>3) return {success:false,message:"저장 슬롯은 1~3입니다."};
-
-  p.saves[slot-1]={
-    level:p.level,
-    exp:p.exp,
-    hp:p.hp,
-    maxHp:p.maxHp,
-    stamina:p.stamina,
-    hunger:p.hunger,
-    thirst:p.thirst,
-    money:p.money,
-    coin:p.coin,
-    region:p.region,
-    guild:p.guild,
-    job:p.job,
-    guildTrust:p.guildTrust,
-    skills:p.skills,
-    items:p.items,
-    vehicles:p.vehicles,
-    fishingRod:p.fishingRod,
-    fish:p.fish,
-    kills:p.kills
-  };
-
-  activity(p);
-
-  return {success:true,message:"💾 "+slot+"번 슬롯에 저장했습니다."};
+if(type==="bomb"&&players.length<3){
+return{
+success:false,
+message:"💣 폭탄돌리기는 최소 3명이 필요합니다."
+};
 }
 
-function loadGame(platform,id,slot){
-  const p=getPlayer(platform,id);
-  if(!p) return {success:false,message:"가입된 캐릭터가 없습니다."};
-
-  slot=Number(slot);
-
-  if(slot<1||slot>3||!p.saves[slot-1]) return {success:false,message:"해당 저장 데이터가 없습니다."};
-
-  Object.assign(p,p.saves[slot-1]);
-  activity(p);
-
-  return {success:true,message:"📂 "+slot+"번 슬롯을 불러왔습니다.",player:playerInfo(p)};
+if(players.length<2){
+return{
+success:false,
+message:"최소 2명이 필요합니다."
+};
 }
 
-function requestFriend(platform,id,name){
-  const p=getPlayer(platform,id);
-  const target=findPlayer(platform,name);
-
-  if(!p||!p.started) return {success:false,message:"/시작을 먼저 해주세요."};
-  if(!target) return {success:false,message:"해당 닉네임의 플레이어를 찾을 수 없습니다."};
-  if(p.id===target.id) return {success:false,message:"자기 자신에게 친구 요청을 할 수 없습니다."};
-  if(p.friends.indexOf(target.id)!==-1) return {success:false,message:"이미 친구입니다."};
-  if(target.friendRequests.indexOf(p.id)!==-1) return {success:false,message:"이미 친구 요청을 보냈습니다."};
-
-  target.friendRequests.push(p.id);
-  activity(p);
-
-  return {success:true,message:"👥 "+target.name+" 님에게 친구 요청을 보냈습니다."};
+for(var j=0;j<targets.length;j++){
+if(!areFriends(owner,targets[j])){
+return{
+success:false,
+message:targets[j]+"님은 서로 친구인 상태여야 합니다."
+};
+}
 }
 
-function acceptFriend(platform,id,name){
-  const p=getPlayer(platform,id);
-  const target=findPlayer(platform,name);
+var id=miniId();
 
-  if(!p||!target) return {success:false,message:"플레이어를 찾을 수 없습니다."};
+var scores={};
 
-  const index=p.friendRequests.indexOf(target.id);
-
-  if(index===-1) return {success:false,message:"해당 친구 요청이 없습니다."};
-
-  p.friendRequests.splice(index,1);
-
-  if(p.friends.indexOf(target.id)===-1) p.friends.push(target.id);
-  if(target.friends.indexOf(p.id)===-1) target.friends.push(p.id);
-
-  activity(p);
-
-  return {
-    success:true,
-    message:"🤝 "+target.name+" 님과 친구가 되었습니다.\n서로의 현재 지역이 공개됩니다."
-  };
+for(var k=0;k<players.length;k++){
+scores[players[k]]=0;
 }
 
-function friendList(platform,id){
-  const p=getPlayer(platform,id);
+var game={
+id:id,
+type:type,
+name:miniName(type),
+owner:owner,
+players:players,
+accepted:[owner],
+scores:scores,
+timeLimit:seconds,
+startedAt:0,
+endAt:0,
+status:"waiting",
+bombHolder:null,
+createdAt:Date.now(),
+result:[]
+};
 
-  if(!p) return {success:false,message:"가입된 캐릭터가 없습니다."};
+world.asia.minigames[id]=game;
 
-  let text="👥 친구 목록\n\n";
-
-  if(p.friends.length===0) text+="친구가 없습니다.";
-
-  for(let i=0;i<p.friends.length;i++){
-    const f=world[platform].players[p.friends[i]];
-    if(f){
-      text+=f.name+"\n";
-      text+="상태: "+statusText(statusOf(f))+"\n";
-      text+="지역: "+f.region+"\n\n";
-    }
-  }
-
-  return {success:true,message:text};
+return{
+success:true,
+message:"대결 생성 완료",
+game:game
+};
 }
 
-function chat(platform,id,message){
-  const p=getPlayer(platform,id);
-
-  if(!p||!p.started) return {success:false,message:"/시작을 먼저 해주세요."};
-
-  const now=Date.now();
-
-  if(now-p.chatCooldown<10000){
-    return {success:false,message:"채팅은 10초에 한 번 사용할 수 있습니다."};
-  }
-
-  p.chatCooldown=now;
-  activity(p);
-
-  return {
-    success:true,
-    message:"📢 [전체 채팅] "+p.name+" 님이 "+message+"라고 하셨습니다."
-  };
+function startMiniGame(game){
+if(game.status!=="waiting"){
+return;
 }
 
-function whisper(platform,id,targetName,message){
-  const p=getPlayer(platform,id);
-  const target=findPlayer(platform,targetName);
+game.status="playing";
+game.startedAt=Date.now();
+game.endAt=Date.now()+game.timeLimit*1000;
 
-  if(!p||!p.started) return {success:false,message:"/시작을 먼저 해주세요."};
-  if(!target) return {success:false,message:"해당 닉네임의 플레이어를 찾을 수 없습니다."};
-
-  const now=Date.now();
-
-  if(now-p.whisperCooldown<5000){
-    return {success:false,message:"귓속말은 5초에 한 번 사용할 수 있습니다."};
-  }
-
-  p.whisperCooldown=now;
-  activity(p);
-
-  return {
-    success:true,
-    message:"💬 [귓속말 → "+target.name+"] "+message,
-    targetMessage:"💬 [귓속말 ← "+p.name+"] "+message,
-    targetId:target.id
-  };
+if(game.type==="bomb"){
+var index=Math.floor(Math.random()*game.accepted.length);
+game.bombHolder=game.accepted[index];
+}
 }
 
-async function handle(req,res){
-  if(req.method==="OPTIONS"){
-    res.writeHead(204,{
-      "Access-Control-Allow-Origin":"*",
-      "Access-Control-Allow-Methods":"GET,POST,OPTIONS",
-      "Access-Control-Allow-Headers":"Content-Type"
-    });
-    return res.end();
-  }
-
-  const platform=getPlatform(req);
-
-  if(req.method==="GET"&&req.url==="/"){
-    return send(res,200,{
-      status:"online",
-      server:"apocalypse-seoul",
-      platform:platform,
-      backup:GITHUB_TOKEN?"enabled":"disabled",
-      regions:Object.keys(regions).length,
-      vehicles:vehicleNames.length,
-      items:Object.keys(items).length,
-      zombies:zombieNames.length,
-      aliens:alienNames.length,
-      creatures:creatureNames.length,
-      fish:fishNames.length,
-      guilds:Object.keys(guilds).length
-    });
-  }
-
-  if(req.method==="GET"&&req.url==="/api/game"){
-    return send(res,200,{
-      success:true,
-      guilds:guilds,
-      jobs:jobs,
-      regions:regions,
-      skills:skills,
-      vehicles:vehicleNames,
-      items:items,
-      zombies:zombieNames,
-      aliens:alienNames,
-      creatures:creatureNames,
-      fish:fishNames
-    });
-  }
-
-  if(req.method==="POST"){
-    let body="";
-
-    req.on("data",chunk=>body+=chunk);
-
-    req.on("end",async()=>{
-      try{
-        const input=body?JSON.parse(body):{};
-        let result=null;
-
-        if(req.url==="/api/register"){
-          result=registerPlayer(platform,input.id,input.name);
-        }
-
-        else if(req.url==="/api/start"){
-          result=startPlayer(platform,input.id);
-        }
-
-        else if(req.url==="/api/job"){
-          result=chooseJob(platform,input.id,input.job);
-        }
-
-        else if(req.url==="/api/guild"){
-          result=chooseGuild(platform,input.id,input.guild);
-        }
-
-        else if(req.url==="/api/player"){
-          const p=getPlayer(platform,input.id);
-          result=p?{success:true,player:playerInfo(p)}:{success:false,message:"플레이어를 찾을 수 없습니다."};
-        }
-
-        else if(req.url==="/api/move"){
-          result=movePlayer(platform,input.id,input.destination);
-        }
-
-        else if(req.url==="/api/explore"){
-          result=explore(platform,input.id);
-        }
-
-        else if(req.url==="/api/hunt"){
-          result=hunt(platform,input.id);
-        }
-
-        else if(req.url==="/api/fishing"){
-          result=fishing(platform,input.id);
-        }
-
-        else if(req.url==="/api/save"){
-          result=saveGame(platform,input.id,input.slot);
-        }
-
-        else if(req.url==="/api/load"){
-          result=loadGame(platform,input.id,input.slot);
-        }
-
-        else if(req.url==="/api/friend/request"){
-          result=requestFriend(platform,input.id,input.target);
-        }
-
-        else if(req.url==="/api/friend/accept"){
-          result=acceptFriend(platform,input.id,input.target);
-        }
-
-        else if(req.url==="/api/friend/list"){
-          result=friendList(platform,input.id);
-        }
-
-        else if(req.url==="/api/chat"){
-          result=chat(platform,input.id,input.message);
-        }
-
-        else if(req.url==="/api/whisper"){
-          result=whisper(platform,input.id,input.target,input.message);
-        }
-
-        else if(req.url==="/api/status"){
-          const p=getPlayer(platform,input.id);
-          result=p?{success:true,status:statusText(statusOf(p)),region:p.region}:{success:false,message:"플레이어를 찾을 수 없습니다."};
-        }
-
-        else{
-          return send(res,404,{success:false,message:"Not Found"});
-        }
-
-        if(result.success&&req.url!=="/api/status"){
-          await saveBackup();
-        }
-
-        send(res,result.success?200:400,result);
-      }catch(e){
-        send(res,400,{success:false,message:"잘못된 요청입니다."});
-      }
-    });
-
-    return;
-  }
-
-  send(res,404,{success:false,message:"Not Found"});
+function checkMiniGame(game){
+if(!game){
+return;
 }
 
-async function start(){
-  await loadBackup();
-
-  http.createServer(handle).listen(PORT,()=>{
-    console.log("Apocalypse Seoul Server Online");
-    console.log("Port: "+PORT);
-    console.log("Backup: "+(GITHUB_TOKEN?"ON":"OFF"));
-  });
-
-  setInterval(()=>{
-    saveBackup();
-  },60000);
+if(game.status==="playing"&&Date.now()>=game.endAt){
+finishMiniGame(game);
+}
 }
 
-start();
+function finishMiniGame(game){
+if(game.status!=="playing"){
+return;
+}
+
+game.status="finished";
+
+var result=[];
+
+for(var i=0;i<game.accepted.length;i++){
+var id=game.accepted[i];
+var p=getPlayer("instagram",id);
+
+result.push({
+id:id,
+name:p?p.name:id,
+score:game.scores[id]||0
+});
+}
+
+result.sort(function(a,b){
+return b.score-a.score;
+});
+
+game.result=result;
+game.finishedAt=Date.now();
+}
+
+function acceptMiniGame(id,playerId){
+var game=world.asia.minigames[id];
+
+if(!game){
+return{
+success:false,
+message:"존재하지 않는 대결입니다."
+};
+}
+
+if(game.status!=="waiting"){
+return{
+success:false,
+message:"이미 시작했거나 종료된 대결입니다."
+};
+}
+
+if(game.players.indexOf(playerId)===-1){
+return{
+success:false,
+message:"초대받은 사람이 아닙니다."
+};
+}
+
+if(game.accepted.indexOf(playerId)===-1){
+game.accepted.push(playerId);
+}
+
+if(game.type==="bomb"){
+if(game.accepted.length>=3){
+startMiniGame(game);
+}
+}else{
+if(game.accepted.length===game.players.length){
+startMiniGame(game);
+}
+}
+
+return{
+success:true,
+message:game.status==="playing"?"대결 시작!":"참가 완료",
+game:game
+};
+}
+
+function addMiniScore(id,playerId,amount){
+var game=world.asia.minigames[id];
+
+if(!game){
+return{
+success:false,
+message:"대결을 찾을 수 없습니다."
+};
+}
+
+checkMiniGame(game);
+
+if(game.status!=="playing"){
+return{
+success:false,
+message:"현재 진행 중인 대결이 아닙니다."
+};
+}
+
+if(game.accepted.indexOf(playerId)===-1){
+return{
+success:false,
+message:"참가자가 아닙니다."
+};
+}
+
+amount=Number(amount);
+
+if(!isFinite(amount)||amount<0){
+amount=0;
+}
+
+if(!game.scores[playerId]){
+game.scores[playerId]=0;
+}
+
+game.scores[playerId]+=amount;
+
+return{
+success:true,
+score:game.scores[playerId]
+};
+}
+
+function passBomb(id,from,to){
+var game=world.asia.minigames[id];
+
+if(!game){
+return{
+success:false,
+message:"대결을 찾을 수 없습니다."
+};
+}
+
+checkMiniGame(game);
+
+if(game.status!=="playing"){
+return{
+success:false,
+message:"폭탄돌리기가 진행 중이 아닙니다."
+};
+}
+
+if(game.type!=="bomb"){
+return{
+success:false,
+message:"폭탄돌리기 게임이 아닙니다."
+};
+}
+
+if(game.bombHolder!==from){
+return{
+success:false,
+message:"현재 폭탄을 가지고 있지 않습니다."
+};
+}
+
+if(game.accepted.indexOf(to)===-1){
+return{
+success:false,
+message:"참가자가 아닙니다."
+};
+}
+
+if(from===to){
+return{
+success:false,
+message:"자기 자신에게는 넘길 수 없습니다."
+};
+}
+
+game.bombHolder=to;
+
+return{
+success:true,
+message:"💣 폭탄을 넘겼습니다.",
+holder:to
+};
+}
+
+function register(req,res,data,platform){
+var w=getWorld(platform);
+
+if(!data.id||!data.name){
+send(res,{
+success:false,
+message:"아이디와 캐릭터 이름이 필요합니다."
+});
+return;
+}
+
+if(w.players[data.id]){
+send(res,{
+success:false,
+message:"이미 가입되어 있습니다."
+});
+return;
+}
+
+var keys=Object.keys(w.players);
+
+for(var i=0;i<keys.length;i++){
+if(w.players[keys[i]].name===data.name){
+send(res,{
+success:false,
+message:"이미 사용 중인 캐릭터 이름입니다."
+});
+return;
+}
+}
+
+w.players[data.id]=createPlayer(
+data.id,
+data.name,
+platform
+);
+
+send(res,{
+success:true,
+message:"생존자 등록 완료!",
+player:w.players[data.id]
+});
+}
+
+var server=http.createServer(function(req,res){
+var parsed=url.parse(req.url,true);
+var path=parsed.pathname;
+var platform=getPlatform(req);
+
+if(req.method==="GET"&&path==="/"){
+var w=getWorld(platform);
+
+send(res,{
+status:"online",
+server:"apocalypse-seoul",
+platform:platform,
+world:platform==="instagram"?"ASIA":"KOREA",
+regions:20,
+vehicles:300,
+items:1001,
+zombies:100,
+aliens:100,
+creatures:100,
+fish:100,
+guilds:11,
+players:Object.keys(w.players).length
+});
+
+return;
+}
+
+if(req.method==="GET"&&path==="/api/world"){
+send(res,{
+success:true,
+world:platform==="instagram"?"ASIA":"KOREA",
+platform:platform
+});
+return;
+}
+
+readBody(req,function(data){
+
+if(req.method==="POST"&&path==="/api/room/set"){
+var w=getWorld(platform);
+
+w.gameRoom=data.room;
+
+send(res,{
+success:true,
+message:"게임방이 설정되었습니다.",
+room:data.room
+});
+
+return;
+}
+
+if(req.method==="POST"&&path==="/api/room/check"){
+send(res,{
+success:roomCheck(platform,data.room),
+message:roomCheck(platform,data.room)?"게임방입니다.":"게임방이 아닙니다."
+});
+
+return;
+}
+
+if(req.method==="POST"&&path==="/api/register"){
+register(req,res,data,platform);
+return;
+}
+
+if(req.method==="POST"&&path==="/api/start"){
+var p=getPlayer(platform,data.id);
+
+if(!p){
+send(res,{
+success:false,
+message:"먼저 /가입 닉네임 으로 가입하세요."
+});
+return;
+}
+
+p.started=true;
+touch(p);
+
+send(res,{
+success:true,
+message:"게임이 시작되었습니다.",
+player:p
+});
+
+return;
+}
+
+if(req.method==="POST"&&path==="/api/player"){
+var p=getPlayer(platform,data.id);
+
+if(!p){
+send(res,{
+success:false,
+message:"플레이어가 없습니다."
+});
+return;
+}
+
+touch(p);
+
+send(res,{
+success:true,
+player:p,
+status:getStatus(p)
+});
+
+return;
+}
+
+if(req.method==="POST"&&path==="/api/job"){
+var p=getPlayer(platform,data.id);
+
+if(!p){
+send(res,{success:false,message:"플레이어가 없습니다."});
+return;
+}
+
+if(jobs.indexOf(data.job)===-1){
+send(res,{
+success:false,
+message:"직업: "+jobs.join(", ")
+});
+return;
+}
+
+p.job=data.job;
+touch(p);
+
+send(res,{
+success:true,
+message:"직업이 "+data.job+"로 결정되었습니다.",
+player:p
+});
+
+return;
+}
+
+if(req.method==="POST"&&path==="/api/guild"){
+var p=getPlayer(platform,data.id);
+
+if(!p){
+send(res,{success:false,message:"플레이어가 없습니다."});
+return;
+}
+
+if(guilds.indexOf(data.guild)===-1){
+send(res,{
+success:false,
+message:"길드: "+guilds.join(", ")
+});
+return;
+}
+
+p.guild=data.guild;
+p.guildTrust=1;
+touch(p);
+
+send(res,{
+success:true,
+message:"🏴 "+data.guild+" 가입 완료!",
+player:p
+});
+
+return;
+}
+
+if(req.method==="POST"&&path==="/api/move"){
+var p=getPlayer(platform,data.id);
+
+if(!p){
+send(res,{success:false,message:"플레이어가 없습니다."});
+return;
+}
+
+if(regions.indexOf(data.destination)===-1){
+send(res,{
+success:false,
+message:"존재하지 않는 지역입니다."
+});
+return;
+}
+
+p.region=data.destination;
+p.stamina=Math.max(0,p.stamina-10);
+touch(p);
+
+send(res,{
+success:true,
+message:"📍 "+data.destination+"으로 이동했습니다.",
+player:p
+});
+
+return;
+}
+
+if(req.method==="POST"&&path==="/api/explore"){
+var p=getPlayer(platform,data.id);
+
+if(!p){
+send(res,{success:false,message:"플레이어가 없습니다."});
+return;
+}
+
+var item=randomItem();
+
+addItem(p,item,1);
+p.exp+=20;
+p.stamina=Math.max(0,p.stamina-10);
+touch(p);
+levelUp(p);
+
+send(res,{
+success:true,
+message:"🔎 탐색 성공!\n"+item+" x1 획득\nEXP +20"
+});
+
+return;
+}
+
+if(req.method==="POST"&&path==="/api/hunt"){
+var p=getPlayer(platform,data.id);
+
+if(!p){
+send(res,{success:false,message:"플레이어가 없습니다."});
+return;
+}
+
+var enemy=["zombie","alien","creature"];
+var e=enemy[Math.floor(Math.random()*enemy.length)];
+
+p.kills[e]++;
+p.exp+=30;
+p.money+=50;
+p.stamina=Math.max(0,p.stamina-15);
+touch(p);
+levelUp(p);
+
+var enemyName={
+zombie:"좀비",
+alien:"외계인",
+creature:"크리쳐"
+};
+
+send(res,{
+success:true,
+message:"⚔️ "+enemyName[e]+" 사냥 성공!\n💰 돈 +50\nEXP +30"
+});
+
+return;
+}
+
+if(req.method==="POST"&&path==="/api/fishing"){
+var p=getPlayer(platform,data.id);
+
+if(!p){
+send(res,{success:false,message:"플레이어가 없습니다."});
+return;
+}
+
+if(!p.fishingRod){
+p.fishingRod=true;
+}
+
+var fish=randomFish();
+
+if(!p.fish[fish]){
+p.fish[fish]=0;
+}
+
+p.fish[fish]++;
+p.exp+=25;
+touch(p);
+levelUp(p);
+
+send(res,{
+success:true,
+message:"🎣 "+fish+"을(를) 낚았습니다!\nEXP +25"
+});
+
+return;
+}
+
+if(req.method==="POST"&&path==="/api/friend/request"){
+if(platform!=="instagram"){
+send(res,{
+success:false,
+message:"친구 시스템은 계정별로 독립되어 있습니다."
+});
+return;
+}
+
+var a=getPlayer(platform,data.id);
+var b=getPlayer(platform,data.target);
+
+if(!a||!b){
+send(res,{
+success:false,
+message:"플레이어를 찾을 수 없습니다."
+});
+return;
+}
+
+if(a.friends.indexOf(data.target)!==-1){
+send(res,{
+success:false,
+message:"이미 친구입니다."
+});
+return;
+}
+
+if(b.friendRequests.indexOf(data.id)===-1){
+b.friendRequests.push(data.id);
+}
+
+send(res,{
+success:true,
+message:b.name+"님에게 친구 요청을 보냈습니다."
+});
+
+return;
+}
+
+if(req.method==="POST"&&path==="/api/friend/accept"){
+var a=getPlayer(platform,data.id);
+var b=getPlayer(platform,data.target);
+
+if(!a||!b){
+send(res,{
+success:false,
+message:"플레이어를 찾을 수 없습니다."
+});
+return;
+}
+
+if(a.friendRequests.indexOf(data.target)===-1){
+send(res,{
+success:false,
+message:"친구 요청이 없습니다."
+});
+return;
+}
+
+a.friendRequests.splice(
+a.friendRequests.indexOf(data.target),
+1
+);
+
+if(a.friends.indexOf(data.target)===-1){
+a.friends.push(data.target);
+}
+
+if(b.friends.indexOf(data.id)===-1){
+b.friends.push(data.id);
+}
+
+send(res,{
+success:true,
+message:"🤝 "+b.name+"님과 친구가 되었습니다."
+});
+
+return;
+}
+
+if(req.method==="POST"&&path==="/api/friend/list"){
+var p=getPlayer(platform,data.id);
+
+if(!p){
+send(res,{success:false,message:"플레이어가 없습니다."});
+return;
+}
+
+var names=[];
+
+for(var i=0;i<p.friends.length;i++){
+var f=getPlayer(platform,p.friends[i]);
+
+if(f){
+names.push(
+f.name+" ["+getStatus(f)+"] "+f.region
+);
+}
+}
+
+send(res,{
+success:true,
+message:names.length?names.join("\n"):"친구가 없습니다.",
+friends:names
+});
+
+return;
+}
+
+if(req.method==="POST"&&path==="/api/chat"){
+var p=getPlayer(platform,data.id);
+
+if(!p){
+send(res,{success:false,message:"플레이어가 없습니다."});
+return;
+}
+
+if(Date.now()<p.chatCooldown){
+send(res,{
+success:false,
+message:"채팅은 10초마다 가능합니다."
+});
+return;
+}
+
+p.chatCooldown=Date.now()+10000;
+touch(p);
+
+send(res,{
+success:true,
+message:"💬 "+p.name+": "+String(data.message||"")
+});
+
+return;
+}
+
+if(req.method==="POST"&&path==="/api/save"){
+var p=getPlayer(platform,data.id);
+
+if(!p){
+send(res,{success:false,message:"플레이어가 없습니다."});
+return;
+}
+
+var slot=String(data.slot||"1");
+
+p.saves[slot]=JSON.parse(JSON.stringify(p));
+
+send(res,{
+success:true,
+message:"💾 저장 완료!"
+});
+
+return;
+}
+
+if(req.method==="POST"&&path==="/api/load"){
+var p=getPlayer(platform,data.id);
+
+if(!p){
+send(res,{success:false,message:"플레이어가 없습니다."});
+return;
+}
+
+var slot=String(data.slot||"1");
+
+if(!p.saves[slot]){
+send(res,{
+success:false,
+message:"저장 데이터가 없습니다."
+});
+return;
+}
+
+var oldId=p.id;
+var oldPlatform=p.platform;
+
+p=JSON.parse(JSON.stringify(p.saves[slot]));
+p.id=oldId;
+p.platform=oldPlatform;
+p.saves=p.saves||{};
+p.lastActivity=Date.now();
+
+getWorld(platform).players[data.id]=p;
+
+send(res,{
+success:true,
+message:"📂 불러오기 완료!",
+player:p
+});
+
+return;
+}
+
+if(platform==="instagram"&&req.method==="POST"&&path==="/api/instagram/minigame/create"){
+var type=miniType(data.type);
+var seconds=Number(data.seconds);
+
+if(!data.id||!type){
+send(res,{
+success:false,
+message:"플레이어와 게임 종류가 필요합니다."
+});
+return;
+}
+
+if(!isFinite(seconds)||seconds<1||seconds>600){
+send(res,{
+success:false,
+message:"제한시간은 1~600초입니다."
+});
+return;
+}
+
+var p=getPlayer("instagram",data.id);
+
+if(!p){
+send(res,{
+success:false,
+message:"인스타그램 계정이 없습니다."
+});
+return;
+}
+
+var targets=Array.isArray(data.targets)?data.targets:[];
+
+var created=createMiniGame(
+data.id,
+targets,
+type,
+seconds
+);
+
+send(res,created);
+return;
+}
+
+if(platform==="instagram"&&req.method==="POST"&&path==="/api/instagram/minigame/accept"){
+var accepted=acceptMiniGame(
+data.gameId,
+data.id
+);
+
+send(res,accepted);
+return;
+}
+
+if(platform==="instagram"&&req.method==="POST"&&path==="/api/instagram/minigame/score"){
+var score=addMiniScore(
+data.gameId,
+data.id,
+data.amount
+);
+
+send(res,score);
+return;
+}
+
+if(platform==="instagram"&&req.method==="POST"&&path==="/api/instagram/minigame/bomb"){
+var bomb=passBomb(
+data.gameId,
+data.id,
+data.target
+);
+
+send(res,bomb);
+return;
+}
+
+if(platform==="instagram"&&req.method==="GET"&&path==="/api/instagram/minigame"){
+var gameId=parsed.query.id;
+var game=world.asia.minigames[gameId];
+
+if(!game){
+send(res,{
+success:false,
+message:"대결을 찾을 수 없습니다."
+});
+return;
+}
+
+checkMiniGame(game);
+
+send(res,{
+success:true,
+game:game
+});
+
+return;
+}
+
+send(res,{
+success:false,
+message:"존재하지 않는 요청입니다."
+},404);
+
+});
+});
+
+server.listen(PORT,function(){
+console.log("APOCALYPSE SEOUL ONLINE");
+console.log("KOREA = KAKAO");
+console.log("ASIA = INSTAGRAM");
+console.log("PORT = "+PORT);
+});
